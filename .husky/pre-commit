@@ -1,6 +1,3 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # Enterprise guardrail: run only staged checks to keep commits fast while
 # preventing broken TypeScript/React changes from entering the mainline.
 npx lint-staged
