@@ -32,7 +32,7 @@ docker compose version
 Go to the project folder:
 
 ```powershell
-cd C:\Users\sneha\OneDrive\Desktop\task\taskflow
+cd C:\Users\sneha\OneDrive\Desktop\task
 ```
 
 ## 2. First-Time Setup Commands
@@ -47,6 +47,22 @@ Then start the full platform:
 
 ```powershell
 docker compose up -d
+```
+
+Initialize the local PostgreSQL schema. This is required after a fresh `docker compose down -v` because the Postgres volume is empty:
+
+```powershell
+$env:DATABASE_URL='postgresql://taskflow:taskflow_local_password@localhost:5432/taskflow?schema=public'
+$env:DIRECT_DATABASE_URL=$env:DATABASE_URL
+npx prisma db push
+```
+
+Seed the demo workspace, users, teams, projects, tasks, and comments:
+
+```powershell
+$env:DATABASE_URL='postgresql://taskflow:taskflow_local_password@localhost:5432/taskflow?schema=public'
+$env:DIRECT_DATABASE_URL=$env:DATABASE_URL
+npm run db:seed
 ```
 
 Check all containers:
@@ -68,7 +84,7 @@ Stop watching logs with `Ctrl+C`. This does not stop the containers.
 For future demo runs, use:
 
 ```powershell
-cd C:\Users\sneha\OneDrive\Desktop\task\taskflow
+cd C:\Users\sneha\OneDrive\Desktop\task
 docker compose up -d
 ```
 
@@ -97,9 +113,10 @@ docker compose down -v
 | TaskFlow App | `http://localhost:3000` | The product running from Docker |
 | Backend API | `http://localhost:3001/api/health` | Backend health check |
 | Backend Metrics | `http://localhost:3001/metrics` | Prometheus metrics endpoint |
-| Prometheus | `http://localhost:9090` | Scrape targets, queries, alerts |
+| Prometheus Targets | `http://localhost:9090/targets` | Scrape target health |
+| Prometheus Graph | `http://localhost:9090/graph` | Metrics queries |
 | Grafana | `http://localhost:3002` | Enterprise dashboard |
-| Jenkins | `http://localhost:8080` | CI/CD pipeline |
+| Jenkins | `http://localhost:8085` | CI/CD pipeline |
 | SonarQube | `http://localhost:9000` | Quality/security analysis |
 | Nexus | `http://localhost:8081` | Artifact registry |
 | Nexus Docker Registry | `localhost:8082` | Private Docker registry endpoint |
@@ -121,7 +138,7 @@ Use this order on stage:
 4. Open Grafana at `http://localhost:3002`.
 5. Open SonarQube at `http://localhost:9000`.
 6. Open Nexus at `http://localhost:8081`.
-7. Open Jenkins at `http://localhost:8080`.
+7. Open Jenkins at `http://localhost:8085`.
 8. Explain the pipeline:
 
 ```text
@@ -137,12 +154,56 @@ Developer Push
 -> Grafana
 ```
 
+## 5A. What Your Current Logs Mean
+
+Your current Docker status is good:
+
+- `frontend` and `backend` are healthy.
+- `postgres` and `redis` are healthy.
+- Jenkins, SonarQube, Nexus, Prometheus, and Grafana are running.
+
+The earlier frontend error:
+
+```text
+The table public.users does not exist in the current database.
+```
+
+means the PostgreSQL container was running, but Prisma had not created the schema yet. Fix it with:
+
+```powershell
+$env:DATABASE_URL='postgresql://taskflow:taskflow_local_password@localhost:5432/taskflow?schema=public'
+$env:DIRECT_DATABASE_URL=$env:DATABASE_URL
+npx prisma db push
+npm run db:seed
+```
+
+The earlier backend log:
+
+```text
+GET /metrics 404
+```
+
+meant Prometheus was scraping the backend before the Express metrics endpoint existed. The backend now exposes `http://localhost:3001/metrics`, and Prometheus targets should show `UP`.
+
+The Grafana login error happened because the password was not `admin`. Use:
+
+```text
+Username: admin
+Password: taskflow
+```
+
+If needed, reset it:
+
+```powershell
+docker exec taskflow-grafana grafana cli admin reset-admin-password taskflow
+```
+
 ## 6. Jenkins First-Time Setup
 
 Open:
 
 ```text
-http://localhost:8080
+http://localhost:8085
 ```
 
 Get the initial admin password:
@@ -160,6 +221,8 @@ Install suggested Jenkins plugins. Also ensure these Jenkins plugins are availab
 - HTML Publisher
 - SonarQube Scanner
 
+If Jenkins is still on the Getting Started plugin installation screen, wait until the progress bar completes. Log lines such as `Installation successful` are normal.
+
 Create credentials in Jenkins:
 
 | Credential ID | Type | Purpose |
@@ -168,6 +231,19 @@ Create credentials in Jenkins:
 | `taskflow-kubeconfig` | Secret file | Kubeconfig for real Kubernetes deployment |
 
 For a local-only demo, you can show the pipeline up to image build/scan/push. The real Kubernetes deploy stage is gated to the `main` branch and requires kubeconfig.
+
+Configure the SonarQube scanner tool in Jenkins:
+
+1. Go to `Manage Jenkins`.
+2. Open `Tools`.
+3. Find `SonarQube Scanner installations`.
+4. Add a scanner named exactly:
+
+```text
+SonarScanner
+```
+
+5. Enable automatic installation.
 
 Create the Jenkins pipeline:
 
@@ -182,6 +258,33 @@ Create the Jenkins pipeline:
 ```text
 jenkins/Jenkinsfile
 ```
+
+For a local Docker demo, the mounted repository is available inside Jenkins at:
+
+```text
+/workspace/taskflow
+```
+
+If you do not want to connect a remote Git repository yet, use this SCM URL:
+
+```text
+file:///workspace/taskflow
+```
+
+Set the branch to your current branch. Your commit output showed `master`, so use:
+
+```text
+*/master
+```
+
+How to demonstrate Jenkins:
+
+1. Open `http://localhost:8085`.
+2. Open `taskflow-enterprise-pipeline`.
+3. Click `Build Now`.
+4. Open the running build number.
+5. Show the stage view: checkout, install, test/lint in parallel, SonarQube, Docker build, Trivy scan, Nexus push, Kubernetes deploy.
+6. Explain that deployment is branch-gated, so non-production branches build, test, scan, and publish artifacts without touching production.
 
 ## 7. Nexus First-Time Setup
 
@@ -232,6 +335,15 @@ localhost:8082/taskflow/frontend
 localhost:8082/taskflow/backend
 ```
 
+How to demonstrate Nexus:
+
+1. Open `http://localhost:8081`.
+2. Log in as `admin`.
+3. Go to `Browse`.
+4. After Jenkins pushes images, open `taskflow-docker`.
+5. Show SHA/version image tags.
+6. Explain that Nexus is the private artifact registry between CI and deployment.
+
 ## 8. SonarQube First-Time Setup
 
 Open:
@@ -275,6 +387,16 @@ SonarQube
 http://sonarqube:9000
 ```
 
+How to demonstrate SonarQube:
+
+1. Open `http://localhost:9000`.
+2. Open project `TaskFlow`.
+3. Show bugs, vulnerabilities, code smells, duplication, and coverage.
+4. Open `Quality Gates`.
+5. Explain that Jenkins blocks promotion when the quality gate fails.
+
+The local SonarQube screen can show embedded database and version warnings. For this Docker-only university demo, that is acceptable. In production, SonarQube would use an external database and a supported LTS release.
+
 ## 9. Prometheus Demo
 
 Open:
@@ -300,18 +422,18 @@ sum(rate(taskflow_http_requests_total[5m]))
 ```
 
 ```promql
-histogram_quantile(0.95, sum(rate(taskflow_http_request_duration_seconds_bucket[5m])) by (le))
+sum(rate(taskflow_backend_http_requests_total[5m]))
 ```
 
 ```promql
-taskflow_websocket_connections
+histogram_quantile(0.95, sum(rate(taskflow_backend_http_request_duration_seconds_bucket[5m])) by (le))
 ```
 
 ```promql
-taskflow_queue_jobs_total
+taskflow_backend_process_resident_memory_bytes
 ```
 
-If a metric does not show yet, generate traffic by clicking around the TaskFlow app.
+If a metric does not show yet, generate traffic by clicking around the TaskFlow app or opening `http://localhost:3001/api/health`.
 
 ## 10. Grafana Demo
 
@@ -348,6 +470,14 @@ What to explain:
 - Active alerts
 
 Some Kubernetes panels may show empty locally unless Prometheus is running inside a Kubernetes cluster with kube-state-metrics/cAdvisor metrics. That is expected for the Docker-only demo.
+
+How to demonstrate Grafana:
+
+1. Open `http://localhost:3002`.
+2. Log in with `admin / taskflow`.
+3. Open `TaskFlow Enterprise Command Center`.
+4. Show availability, request rate, latency, memory, and business KPI panels.
+5. Explain that the dashboard reads from Prometheus and gives both engineering and executive visibility.
 
 ## 11. Trivy Demo
 
@@ -427,6 +557,10 @@ curl http://localhost:3001/api/health
 curl http://localhost:3001/metrics
 ```
 
+```powershell
+curl http://localhost:9090/api/v1/targets
+```
+
 ## 14. Common Errors And Fixes
 
 ### Port already in use
@@ -483,6 +617,17 @@ Check logs:
 
 ```powershell
 docker compose logs -f frontend backend prometheus
+```
+
+### Prisma table does not exist
+
+If frontend logs show `The table public.users does not exist`, initialize and seed the database:
+
+```powershell
+$env:DATABASE_URL='postgresql://taskflow:taskflow_local_password@localhost:5432/taskflow?schema=public'
+$env:DIRECT_DATABASE_URL=$env:DATABASE_URL
+npx prisma db push
+npm run db:seed
 ```
 
 ### Clean reset

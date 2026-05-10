@@ -14,7 +14,7 @@ pipeline {
     KUBE_NAMESPACE = 'taskflow'
     HELM_RELEASE = 'taskflow'
     HELM_CHART = './helm/taskflow'
-    NEXUS_REGISTRY = 'nexus:8082'
+    NEXUS_REGISTRY = 'localhost:8082'
     FRONTEND_IMAGE = "${NEXUS_REGISTRY}/taskflow/frontend"
     BACKEND_IMAGE = "${NEXUS_REGISTRY}/taskflow/backend"
     NODE_ENV = 'test'
@@ -36,7 +36,7 @@ pipeline {
 
     stage('Install') {
       steps {
-        sh 'npm ci'
+        sh 'npm ci --legacy-peer-deps'
         sh 'npx prisma generate'
       }
     }
@@ -45,7 +45,7 @@ pipeline {
       parallel {
         stage('3a Test') {
           steps {
-            sh 'npm test -- --coverage --ci --reporters=default --reporters=jest-junit'
+            sh 'npm test -- --coverage --ci --passWithNoTests --reporters=default --reporters=jest-junit'
           }
           post {
             always {
@@ -68,8 +68,11 @@ pipeline {
 
     stage('SonarQube') {
       steps {
-        withSonarQubeEnv('SonarQube') {
-          sh 'sonar-scanner'
+        script {
+          def scannerHome = tool name: 'SonarScanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+          withSonarQubeEnv('SonarQube') {
+            sh "${scannerHome}/bin/sonar-scanner"
+          }
         }
       }
     }

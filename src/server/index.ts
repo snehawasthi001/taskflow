@@ -19,7 +19,7 @@ import { notificationRoutes } from "./routes/notifications.routes";
 import { searchRoutes } from "./routes/search.routes";
 import { auditRoutes } from "./routes/audit.routes";
 import { errorMiddleware } from "./middleware/error.middleware";
-import { metricsMiddleware } from "./middleware/metrics.middleware";
+import { metricsHandler, metricsMiddleware } from "./middleware/metrics.middleware";
 
 const app = express();
 const httpServer = createServer(app);
@@ -50,6 +50,7 @@ app.use(rateLimit({
 
 // ── Metrics ───────────────────────────────────────────────────
 app.use(metricsMiddleware);
+app.get("/metrics", metricsHandler);
 
 // ── Health Check ──────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {

@@ -23,7 +23,7 @@ Included services:
 - Backend: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3002`
-- Jenkins: `http://localhost:8080`
+- Jenkins: `http://localhost:8085`
 - SonarQube: `http://localhost:9000`
 - Nexus: `http://localhost:8081`
 - PostgreSQL and Redis
