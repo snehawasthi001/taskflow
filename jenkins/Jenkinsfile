@@ -1,0 +1,160 @@
+pipeline {
+  agent any
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
+    disableConcurrentBuilds()
+    skipDefaultCheckout(true)
+    timestamps()
+    timeout(time: 60, unit: 'MINUTES')
+  }
+
+  environment {
+    APP_NAME = 'taskflow'
+    KUBE_NAMESPACE = 'taskflow'
+    HELM_RELEASE = 'taskflow'
+    HELM_CHART = './helm/taskflow'
+    NEXUS_REGISTRY = 'nexus:8082'
+    FRONTEND_IMAGE = "${NEXUS_REGISTRY}/taskflow/frontend"
+    BACKEND_IMAGE = "${NEXUS_REGISTRY}/taskflow/backend"
+    NODE_ENV = 'test'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+        script {
+          env.GIT_SHA = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
+          env.VERSION_TAG = sh(script: "node -p \"require('./package.json').version\"", returnStdout: true).trim()
+          env.IMAGE_TAG = "${env.VERSION_TAG}-${env.GIT_SHA}"
+          env.IS_MAIN = env.BRANCH_NAME == 'main' ? 'true' : 'false'
+        }
+        echo "TaskFlow build ${env.IMAGE_TAG} on branch ${env.BRANCH_NAME ?: 'local'}"
+      }
+    }
+
+    stage('Install') {
+      steps {
+        sh 'npm ci'
+        sh 'npx prisma generate'
+      }
+    }
+
+    stage('3a Test and 3b Lint') {
+      parallel {
+        stage('3a Test') {
+          steps {
+            sh 'npm test -- --coverage --ci --reporters=default --reporters=jest-junit'
+          }
+          post {
+            always {
+              junit allowEmptyResults: true, testResults: 'junit.xml'
+              publishHTML allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true,
+                reportDir: 'coverage/lcov-report', reportFiles: 'index.html', reportName: 'Coverage Report'
+            }
+          }
+        }
+
+        stage('3b Lint') {
+          steps {
+            sh 'npm run lint'
+            sh 'npm run type-check'
+            sh 'npm audit --audit-level=critical --production=false'
+          }
+        }
+      }
+    }
+
+    stage('SonarQube') {
+      steps {
+        withSonarQubeEnv('SonarQube') {
+          sh 'sonar-scanner'
+        }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+        timeout(time: 8, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: true
+        }
+      }
+    }
+
+    stage('Docker Build') {
+      parallel {
+        stage('Build Frontend') {
+          steps {
+            sh 'docker build --pull -f docker/Dockerfile.frontend -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:${GIT_SHA} .'
+          }
+        }
+        stage('Build Backend') {
+          steps {
+            sh 'docker build --pull -f docker/Dockerfile.backend -t ${BACKEND_IMAGE}:${IMAGE_TAG} -t ${BACKEND_IMAGE}:${GIT_SHA} .'
+          }
+        }
+      }
+    }
+
+    stage('Trivy Scan') {
+      parallel {
+        stage('Scan Frontend') {
+          steps {
+            sh 'sh scripts/scan-image.sh ${FRONTEND_IMAGE}:${IMAGE_TAG} frontend'
+          }
+        }
+        stage('Scan Backend') {
+          steps {
+            sh 'sh scripts/scan-image.sh ${BACKEND_IMAGE}:${IMAGE_TAG} backend'
+          }
+        }
+      }
+      post {
+        always {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'trivy-reports/*'
+          publishHTML allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true,
+            reportDir: 'trivy-reports', reportFiles: 'frontend.html,backend.html',
+            reportName: 'Trivy Security Reports'
+        }
+      }
+    }
+
+    stage('Nexus Push') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'nexus-docker-registry', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASSWORD')]) {
+          sh 'echo "$NEXUS_PASSWORD" | docker login ${NEXUS_REGISTRY} --username "$NEXUS_USER" --password-stdin'
+          sh 'docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}'
+          sh 'docker push ${BACKEND_IMAGE}:${IMAGE_TAG}'
+          sh 'docker push ${FRONTEND_IMAGE}:${GIT_SHA}'
+          sh 'docker push ${BACKEND_IMAGE}:${GIT_SHA}'
+          sh 'if [ "${IS_MAIN}" = "true" ]; then docker tag ${FRONTEND_IMAGE}:${IMAGE_TAG} ${FRONTEND_IMAGE}:latest && docker tag ${BACKEND_IMAGE}:${IMAGE_TAG} ${BACKEND_IMAGE}:latest && docker push ${FRONTEND_IMAGE}:latest && docker push ${BACKEND_IMAGE}:latest; fi'
+        }
+      }
+    }
+
+    stage('Kubernetes Deploy') {
+      when { branch 'main' }
+      steps {
+        withCredentials([file(credentialsId: 'taskflow-kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+          sh 'export KUBECONFIG="$KUBECONFIG_FILE" && helm upgrade --install ${HELM_RELEASE} ${HELM_CHART} --namespace ${KUBE_NAMESPACE} --create-namespace --values helm/taskflow/values-prod.yaml --set image.frontend.repository=${FRONTEND_IMAGE} --set image.backend.repository=${BACKEND_IMAGE} --set image.tag=${IMAGE_TAG} --atomic --timeout 8m'
+          sh 'export KUBECONFIG="$KUBECONFIG_FILE" && kubectl rollout status deployment/taskflow-frontend -n ${KUBE_NAMESPACE} --timeout=180s'
+          sh 'export KUBECONFIG="$KUBECONFIG_FILE" && kubectl rollout status deployment/taskflow-backend -n ${KUBE_NAMESPACE} --timeout=180s'
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker logout ${NEXUS_REGISTRY} || true'
+      cleanWs(deleteDirs: true, disableDeferredWipeout: true)
+    }
+    success {
+      echo 'TaskFlow enterprise pipeline completed successfully.'
+    }
+    failure {
+      echo 'TaskFlow enterprise pipeline failed. Review stage logs, Trivy report, and Sonar quality gate.'
+    }
+  }
+}

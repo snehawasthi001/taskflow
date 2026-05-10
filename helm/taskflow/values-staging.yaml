@@ -1,0 +1,29 @@
+replicaCount:
+  frontend: 2
+  backend: 2
+
+ingress:
+  enabled: true
+  className: nginx
+  host: staging.taskflow.example.com
+  tls:
+    enabled: true
+    secretName: taskflow-staging-tls
+
+config:
+  NODE_ENV: staging
+  NEXT_PUBLIC_API_URL: https://staging.taskflow.example.com/api
+  NEXT_PUBLIC_WS_URL: wss://staging.taskflow.example.com
+
+autoscaling:
+  enabled: true
+  frontend:
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  backend:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 65
+    targetMemoryUtilizationPercentage: 75

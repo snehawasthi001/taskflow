@@ -1,0 +1,46 @@
+replicaCount:
+  frontend: 3
+  backend: 3
+
+ingress:
+  enabled: true
+  className: nginx
+  host: taskflow.example.com
+  tls:
+    enabled: true
+    secretName: taskflow-tls
+
+config:
+  NODE_ENV: production
+  NEXT_PUBLIC_API_URL: https://taskflow.example.com/api
+  NEXT_PUBLIC_WS_URL: wss://taskflow.example.com
+  LOG_LEVEL: info
+
+resources:
+  frontend:
+    requests:
+      cpu: 200m
+      memory: 384Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  backend:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1200m
+      memory: 1Gi
+
+autoscaling:
+  enabled: true
+  frontend:
+    minReplicas: 3
+    maxReplicas: 12
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  backend:
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70

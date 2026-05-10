@@ -1,0 +1,127 @@
+---
+- name: Configure TaskFlow DevOps node
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    kubectl_version: "v1.31.0"
+    helm_version: "v3.16.0"
+    allowed_tcp_ports:
+      - "22"
+      - "80"
+      - "443"
+      - "3000"
+      - "3001"
+      - "8080"
+      - "8081"
+      - "8082"
+      - "9000"
+      - "9090"
+      - "3000"
+
+  tasks:
+    - name: Update apt package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install base utilities
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - unzip
+          - git
+          - ufw
+        state: present
+
+    - name: Add Docker apt key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker engine
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Start and enable Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Install kubectl
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    - name: Download Helm archive
+      ansible.builtin.unarchive:
+        src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
+        dest: /tmp
+        remote_src: true
+        creates: /tmp/linux-amd64/helm
+
+    - name: Install Helm binary
+      ansible.builtin.copy:
+        src: /tmp/linux-amd64/helm
+        dest: /usr/local/bin/helm
+        mode: "0755"
+        remote_src: true
+
+    - name: Download AWS CLI installer
+      ansible.builtin.unarchive:
+        src: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp
+        remote_src: true
+        creates: /tmp/aws/install
+
+    - name: Install or update AWS CLI
+      ansible.builtin.command: /tmp/aws/install --update
+      args:
+        creates: /usr/local/bin/aws
+
+    - name: Allow approved TCP ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop: "{{ allowed_tcp_ports | unique }}"
+
+    - name: Enable firewall deny by default
+      community.general.ufw:
+        state: enabled
+        policy: deny
+
+    - name: Verify installed command versions
+      ansible.builtin.command: "{{ item }}"
+      changed_when: false
+      loop:
+        - docker --version
+        - kubectl version --client=true
+        - helm version --short
+        - aws --version
+      register: command_versions
+
+    - name: Print installed versions
+      ansible.builtin.debug:
+        msg: "{{ item.stdout | default(item.stderr) }}"
+      loop: "{{ command_versions.results }}"

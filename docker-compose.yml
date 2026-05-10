@@ -1,0 +1,173 @@
+networks:
+  taskflow-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  jenkins_data:
+  sonarqube_data:
+  sonarqube_logs:
+  nexus_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskflow-postgres
+    environment:
+      POSTGRES_DB: taskflow
+      POSTGRES_USER: taskflow
+      POSTGRES_PASSWORD: taskflow_local_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskflow -d taskflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [taskflow-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: taskflow-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [taskflow-net]
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    image: taskflow/backend:local
+    container_name: taskflow-backend
+    env_file: .env.example
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://taskflow:taskflow_local_password@postgres:5432/taskflow?schema=public
+      DIRECT_DATABASE_URL: postgresql://taskflow:taskflow_local_password@postgres:5432/taskflow?schema=public
+      REDIS_URL: redis://redis:6379
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [taskflow-net]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    image: taskflow/frontend:local
+    container_name: taskflow-frontend
+    env_file: .env.example
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      API_URL: http://backend:3001
+      DATABASE_URL: postgresql://taskflow:taskflow_local_password@postgres:5432/taskflow?schema=public
+      DIRECT_DATABASE_URL: postgresql://taskflow:taskflow_local_password@postgres:5432/taskflow?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    networks: [taskflow-net]
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: taskflow-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks: [taskflow-net]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: taskflow-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: taskflow
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/taskflow-dashboard.json
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks: [taskflow-net]
+
+  jenkins:
+    build:
+      context: .
+      dockerfile: jenkins/Dockerfile
+    image: taskflow/jenkins-enterprise:local
+    container_name: taskflow-jenkins
+    privileged: true
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace/taskflow
+    restart: unless-stopped
+    networks: [taskflow-net]
+
+  sonarqube:
+    image: sonarqube:10.6-community
+    container_name: taskflow-sonarqube
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+    restart: unless-stopped
+    networks: [taskflow-net]
+
+  nexus:
+    image: sonatype/nexus3:3.73.0
+    container_name: taskflow-nexus
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+    volumes:
+      - nexus_data:/nexus-data
+    restart: unless-stopped
+    networks: [taskflow-net]

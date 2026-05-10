@@ -1,0 +1,92 @@
+replicaCount:
+  frontend: 2
+  backend: 2
+
+image:
+  tag: "latest"
+  pullPolicy: IfNotPresent
+  frontend:
+    repository: nexus:8082/taskflow/frontend
+  backend:
+    repository: nexus:8082/taskflow/backend
+
+service:
+  frontend:
+    type: ClusterIP
+    port: 3000
+  backend:
+    type: ClusterIP
+    port: 3001
+
+ingress:
+  enabled: true
+  className: nginx
+  host: taskflow.local
+  tls:
+    enabled: false
+    secretName: taskflow-tls
+
+config:
+  NODE_ENV: production
+  NEXT_PUBLIC_API_URL: http://taskflow.local/api
+  NEXT_PUBLIC_WS_URL: ws://taskflow.local
+  METRICS_PATH: /metrics
+  LOG_LEVEL: info
+
+secrets:
+  create: true
+  DATABASE_URL: postgresql://user:password@postgres:5432/taskflow
+  REDIS_URL: redis://redis:6379
+  NEXTAUTH_SECRET: replace-with-32-byte-secret
+  NEXTAUTH_URL: http://taskflow.local
+  JWT_SECRET: replace-with-jwt-secret
+
+resources:
+  frontend:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+  backend:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+
+autoscaling:
+  enabled: true
+  frontend:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  backend:
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 65
+    targetMemoryUtilizationPercentage: 75
+
+networkPolicy:
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+
+securityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL

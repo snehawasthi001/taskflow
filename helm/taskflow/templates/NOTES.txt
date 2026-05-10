@@ -1,0 +1,8 @@
+TaskFlow has been deployed.
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Frontend: {{ include "taskflow.fullname" . }}-frontend:{{ .Values.service.frontend.port }}
+Backend: {{ include "taskflow.fullname" . }}-backend:{{ .Values.service.backend.port }}
+
+Production deploys should provide real DATABASE_URL, REDIS_URL, NEXTAUTH_SECRET, JWT_SECRET, and TLS settings.

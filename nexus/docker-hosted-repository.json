@@ -1,0 +1,17 @@
+{
+  "name": "taskflow-docker",
+  "online": true,
+  "storage": {
+    "blobStoreName": "default",
+    "strictContentTypeValidation": true,
+    "writePolicy": "allow_once"
+  },
+  "docker": {
+    "v1Enabled": false,
+    "forceBasicAuth": true,
+    "httpPort": 8082
+  },
+  "cleanup": {
+    "policyNames": []
+  }
+}

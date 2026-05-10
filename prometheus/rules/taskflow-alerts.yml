@@ -1,0 +1,76 @@
+groups:
+  - name: taskflow-application
+    rules:
+      - alert: TaskFlowApplicationDown
+        expr: up{job=~"taskflow-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TaskFlow service is unreachable"
+          description: "Prometheus cannot scrape {{ $labels.job }} for more than one minute."
+
+      - alert: TaskFlowHighApiErrorRate
+        expr: (sum(rate(taskflow_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(taskflow_http_requests_total[5m])), 1)) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High TaskFlow API error rate"
+          description: "5xx responses are above 2 percent for five minutes."
+
+      - alert: TaskFlowHighApiLatency
+        expr: histogram_quantile(0.95, sum(rate(taskflow_http_request_duration_seconds_bucket[5m])) by (le)) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TaskFlow p95 latency is high"
+          description: "p95 request latency exceeded 1.5 seconds."
+
+      - alert: TaskFlowAuthFailureSpike
+        expr: sum(rate(taskflow_auth_failures_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Authentication failures are spiking"
+          description: "Auth failures crossed the configured warning threshold."
+
+      - alert: TaskFlowQueueBacklog
+        expr: taskflow_queue_jobs_total{status=~"waiting|delayed"} > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TaskFlow queue backlog is growing"
+          description: "BullMQ has more than 50 waiting or delayed jobs."
+
+      - alert: TaskFlowWebsocketDrop
+        expr: taskflow_websocket_connections < 1
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "No active WebSocket connections"
+          description: "Real-time collaboration appears idle or disconnected."
+
+  - name: taskflow-business
+    rules:
+      - alert: TaskFlowOverdueTaskSpike
+        expr: taskflow_tasks_total{status="overdue"} > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Overdue tasks crossed demo threshold"
+          description: "More than 20 tasks are overdue."
+
+      - alert: TaskFlowLowCompletionVelocity
+        expr: rate(taskflow_tasks_completed_total[1h]) < 1
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Task completion velocity is low"
+          description: "Task completion rate has stayed below one task per hour."

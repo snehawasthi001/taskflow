@@ -1,0 +1,199 @@
+
+================================================================================
+  TASKFLOW — COMPLETE PREREQUISITES & INSTALLATION GUIDE
+  Author: Sneh Awasthi | For Windows (with WSL2 for Ansible)
+  Last Updated: 2026-05-05
+================================================================================
+
+This file lists EVERY tool you need installed BEFORE running a single command
+in the TaskFlow project. Follow each section in order.
+
+--------------------------------------------------------------------------------
+  SECTION 1 — CORE RUNTIME TOOLS
+--------------------------------------------------------------------------------
+
+1. Node.js 20 LTS
+   ├── Download : https://nodejs.org/en/download (Windows Installer .msi)
+   ├── Verify   : node --version  → should print v20.x.x
+   └── Verify   : npm --version   → should print 10.x.x
+
+2. Git (latest)
+   ├── Download : https://git-scm.com/download/win
+   ├── During install: Select "Git Bash", "Use Git from Windows Command Prompt"
+   └── Verify   : git --version
+
+3. pnpm (optional but faster — project uses npm by default)
+   └── (Skip — project uses npm)
+
+--------------------------------------------------------------------------------
+  SECTION 2 — DOCKER & CONTAINERIZATION
+--------------------------------------------------------------------------------
+
+4. Docker Desktop for Windows
+   ├── Download : https://www.docker.com/products/docker-desktop/
+   ├── Requires : Windows 10/11 64-bit with WSL2 backend (recommended)
+   ├── After install: Enable WSL2 integration in Docker Desktop → Settings → Resources → WSL Integration
+   ├── Verify   : docker --version   → Docker version 26.x+
+   └── Verify   : docker compose version → v2.x
+
+5. WSL2 (Windows Subsystem for Linux 2) — Required for Docker + Ansible
+   ├── Open PowerShell as Admin, run:
+   │     wsl --install
+   │     wsl --set-default-version 2
+   │     wsl --install -d Ubuntu-22.04
+   ├── Docs     : https://learn.microsoft.com/en-us/windows/wsl/install
+   └── Verify   : wsl --list --verbose → shows Ubuntu-22.04 (Running, Version 2)
+
+--------------------------------------------------------------------------------
+  SECTION 3 — KUBERNETES
+--------------------------------------------------------------------------------
+
+6. kubectl (Kubernetes CLI)
+   ├── Download : https://kubernetes.io/docs/tasks/tools/install-kubectl-windows/
+   ├── Direct   : https://dl.k8s.io/release/v1.31.0/bin/windows/amd64/kubectl.exe
+   ├── Place    : C:\Windows\System32\kubectl.exe  OR  add to PATH
+   └── Verify   : kubectl version --client
+
+7. minikube (Local Kubernetes)
+   ├── Download : https://minikube.sigs.k8s.io/docs/start/
+   ├── Direct   : https://storage.googleapis.com/minikube/releases/latest/minikube-installer.exe
+   ├── Requires : Docker Desktop running
+   └── Verify   : minikube version
+
+8. Helm 3 (Kubernetes Package Manager)
+   ├── Download : https://helm.sh/docs/intro/install/
+   ├── Windows  : https://get.helm.sh/helm-v3.16.0-windows-amd64.zip
+   ├── Extract  : helm.exe → add to PATH
+   └── Verify   : helm version --short
+
+--------------------------------------------------------------------------------
+  SECTION 4 — TERRAFORM (Infrastructure as Code)
+--------------------------------------------------------------------------------
+
+9. Terraform CLI >= 1.7.0
+   ├── Download : https://developer.hashicorp.com/terraform/install
+   ├── Windows  : https://releases.hashicorp.com/terraform/1.8.5/terraform_1.8.5_windows_amd64.zip
+   ├── Extract  : terraform.exe → add to PATH
+   └── Verify   : terraform version
+
+--------------------------------------------------------------------------------
+  SECTION 5 — AWS CLI (Cloud deployment)
+--------------------------------------------------------------------------------
+
+10. AWS CLI v2
+    ├── Download : https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+    ├── Direct   : https://awscli.amazonaws.com/AWSCLIV2.msi
+    ├── After install: Run  aws configure  (will need Access Key + Secret Key)
+    └── Verify   : aws --version
+
+11. AWS Account (Required for Phase 6 — Cloud)
+    ├── Sign up  : https://aws.amazon.com/free/ (12-month free tier)
+    ├── You need : IAM User with programmatic access + AdministratorAccess policy
+    └── Cost     : ~$10–30/month while EKS cluster is running (DESTROY after demo)
+
+--------------------------------------------------------------------------------
+  SECTION 6 — ANSIBLE (runs inside WSL2)
+--------------------------------------------------------------------------------
+
+12. Ansible (install INSIDE WSL2 Ubuntu, NOT on Windows directly)
+    ├── Open WSL2 terminal, run:
+    │     sudo apt update && sudo apt install -y ansible python3-pip
+    │     ansible --version
+    └── Verify   : ansible --version → shows 2.16+
+
+--------------------------------------------------------------------------------
+  SECTION 7 — CODE QUALITY & SECURITY TOOLS
+--------------------------------------------------------------------------------
+
+13. Trivy (Container Security Scanner)
+    ├── Windows  : Install inside WSL2
+    │     sudo apt-get install wget apt-transport-https gnupg lsb-release
+    │     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+    │     echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
+    │     sudo apt-get update && sudo apt-get install trivy
+    ├── Docs     : https://aquasecurity.github.io/trivy/latest/getting-started/installation/
+    └── Verify   : trivy --version  (inside WSL2)
+
+14. SonarQube (runs as Docker container — no separate install needed)
+    └── Runs via: docker compose --profile ci up sonarqube
+
+15. Nexus Repository (runs as Docker container — no separate install needed)
+    └── Runs via: docker compose --profile ci up nexus
+
+16. Jenkins (runs as Docker container — no separate install needed)
+    └── Runs via: docker compose --profile ci up jenkins
+
+--------------------------------------------------------------------------------
+  SECTION 8 — CODE EDITOR & EXTENSIONS
+--------------------------------------------------------------------------------
+
+17. VS Code (Recommended)
+    ├── Download : https://code.visualstudio.com/download
+    └── Install these extensions:
+          - ESLint (dbaeumer.vscode-eslint)
+          - Prettier (esbenp.prettier-vscode)
+          - Tailwind CSS IntelliSense (bradlc.vscode-tailwindcss)
+          - Prisma (Prisma.prisma)
+          - Docker (ms-azuretools.vscode-docker)
+          - Kubernetes (ms-kubernetes-tools.vscode-kubernetes-tools)
+          - GitLens (eamodio.vscode-gitlens)
+          - Thunder Client or REST Client (for API testing)
+
+--------------------------------------------------------------------------------
+  SECTION 9 — EXTERNAL SERVICES (Cloud — Free Tiers Available)
+--------------------------------------------------------------------------------
+
+18. Neon PostgreSQL (Serverless Postgres — FREE tier)
+    ├── Sign up  : https://neon.tech
+    ├── Create a project → copy the DATABASE_URL
+    └── You will need: DATABASE_URL and DIRECT_DATABASE_URL
+
+19. Upstash Redis (Serverless Redis — FREE tier)
+    ├── Sign up  : https://upstash.com
+    ├── Create a Redis database → copy the REDIS_URL
+    └── You will need: REDIS_URL and REDIS_PASSWORD
+
+20. Google OAuth (for social login)
+    ├── Go to   : https://console.cloud.google.com
+    ├── Create  : New Project → APIs & Services → OAuth 2.0 Client
+    ├── Redirect: http://localhost:3000/api/auth/callback/google
+    └── You will need: AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET
+
+21. GitHub OAuth (for social login)
+    ├── Go to   : https://github.com/settings/developers → OAuth Apps
+    ├── Redirect: http://localhost:3000/api/auth/callback/github
+    └── You will need: AUTH_GITHUB_ID and AUTH_GITHUB_SECRET
+
+22. Gmail App Password (for email sending)
+    ├── Go to   : https://myaccount.google.com/security
+    ├── Enable  : 2-Step Verification → App Passwords
+    ├── Create  : App password for "Mail"
+    └── You will need: SMTP_USER (your gmail) and SMTP_PASS (the 16-char app password)
+
+--------------------------------------------------------------------------------
+  SECTION 10 — VERIFICATION SUMMARY
+--------------------------------------------------------------------------------
+
+Run these commands BEFORE starting the build. All must succeed:
+
+  node --version          → v20.x.x
+  npm --version           → 10.x.x
+  git --version           → git version 2.x
+  docker --version        → Docker version 26.x
+  docker compose version  → Docker Compose version v2.x
+  kubectl version --client
+  minikube version
+  helm version --short
+  terraform version       → Terraform v1.7+
+  aws --version           → aws-cli/2.x
+  (In WSL2): ansible --version
+  (In WSL2): trivy --version
+
+--------------------------------------------------------------------------------
+  ESTIMATED INSTALL TIME: ~1-2 hours (mostly downloads)
+  ESTIMATED DISK SPACE  : ~15-20 GB (Docker images + node_modules + tools)
+--------------------------------------------------------------------------------
+
+================================================================================
+  CREDENTIALS NEEDED — See CREDENTIALS_NEEDED section in implementation_plan.md
+================================================================================

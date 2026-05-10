@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Enforce Conventional Commits so Jenkins/Nexus can derive release metadata.
+npx --no -- commitlint --edit "$1"

@@ -1,0 +1,34 @@
+replicaCount:
+  frontend: 1
+  backend: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  host: taskflow.local
+  tls:
+    enabled: false
+
+config:
+  NODE_ENV: development
+  NEXT_PUBLIC_API_URL: http://taskflow.local/api
+  NEXT_PUBLIC_WS_URL: ws://taskflow.local
+
+resources:
+  frontend:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+  backend:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+
+autoscaling:
+  enabled: false
