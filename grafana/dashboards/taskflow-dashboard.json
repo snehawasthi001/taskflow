@@ -36,7 +36,10 @@
       "gridPos": { "h": 4, "w": 5, "x": 4, "y": 0 },
       "id": 2,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single", "sort": "none" } },
-      "targets": [{ "expr": "sum(rate(taskflow_http_requests_total[5m])) or vector(0)", "legendFormat": "requests/sec", "refId": "A" }],
+      "targets": [
+        { "expr": "sum(rate(taskflow_http_requests_total[5m])) or vector(0)", "legendFormat": "frontend req/sec", "refId": "A" },
+        { "expr": "sum(rate(taskflow_backend_http_requests_total[5m])) or vector(0)", "legendFormat": "backend req/sec", "refId": "B" }
+      ],
       "title": "API Throughput",
       "type": "timeseries"
     },
@@ -46,7 +49,10 @@
       "gridPos": { "h": 4, "w": 5, "x": 9, "y": 0 },
       "id": 3,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single", "sort": "none" } },
-      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(taskflow_http_request_duration_seconds_bucket[5m])) by (le)) or vector(0)", "legendFormat": "p95", "refId": "A" }],
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(taskflow_http_request_duration_seconds_bucket[5m])) by (le)) or vector(0)", "legendFormat": "frontend p95", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(taskflow_backend_http_request_duration_seconds_bucket[5m])) by (le)) or vector(0)", "legendFormat": "backend p95", "refId": "B" }
+      ],
       "title": "API p95 Latency",
       "type": "timeseries"
     },
@@ -56,7 +62,7 @@
       "gridPos": { "h": 4, "w": 5, "x": 14, "y": 0 },
       "id": 4,
       "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
-      "targets": [{ "expr": "(sum(rate(taskflow_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(taskflow_http_requests_total[5m])), 1)) or vector(0)", "legendFormat": "error rate", "refId": "A" }],
+      "targets": [{ "expr": "((sum(rate(taskflow_http_requests_total{status=~\"5..\"}[5m])) + sum(rate(taskflow_backend_http_requests_total{status_code=~\"5..\"}[5m]))) / clamp_min(sum(rate(taskflow_http_requests_total[5m])) + sum(rate(taskflow_backend_http_requests_total[5m])), 1)) or vector(0)", "legendFormat": "error rate", "refId": "A" }],
       "title": "Error Budget Burn",
       "type": "gauge"
     },
@@ -77,8 +83,8 @@
       "id": 6,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "expr": "sum by (status) (taskflow_tasks_total) or vector(0)", "legendFormat": "{{status}}", "refId": "A" },
-        { "expr": "sum(rate(taskflow_tasks_completed_total[30m])) or vector(0)", "legendFormat": "completed velocity", "refId": "B" }
+        { "expr": "sum by (status) (taskflow_tasks_total)", "legendFormat": "{{status}}", "refId": "A" },
+        { "expr": "taskflow_sprint_confidence_percent", "legendFormat": "confidence %", "refId": "B" }
       ],
       "title": "Business KPI: Task Flow",
       "type": "timeseries"
@@ -102,8 +108,9 @@
       "id": 8,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "expr": "sum(rate(taskflow_auth_failures_total[5m])) or vector(0)", "legendFormat": "auth failures/min", "refId": "A" },
-        { "expr": "sum(rate(taskflow_http_requests_total{status=~\"4..\"}[5m])) or vector(0)", "legendFormat": "4xx responses", "refId": "B" }
+        { "expr": "taskflow_auth_failures_total or vector(0)", "legendFormat": "auth failures", "refId": "A" },
+        { "expr": "sum(rate(taskflow_http_requests_total{status=~\"4..\"}[5m])) + sum(rate(taskflow_backend_http_requests_total{status_code=~\"4..\"}[5m])) or vector(0)", "legendFormat": "4xx responses/sec", "refId": "B" },
+        { "expr": "taskflow_delivery_risk_active", "legendFormat": "active risks", "refId": "C" }
       ],
       "title": "Security Signal",
       "type": "timeseries"
@@ -114,8 +121,8 @@
       "gridPos": { "h": 7, "w": 6, "x": 0, "y": 12 },
       "id": 9,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"taskflow\"}[5m])) by (pod) or vector(0)", "legendFormat": "{{pod}}", "refId": "A" }],
-      "title": "Kubernetes CPU",
+      "targets": [{ "expr": "rate(taskflow_backend_process_cpu_seconds_total[5m]) or vector(0)", "legendFormat": "backend cpu/sec", "refId": "A" }],
+      "title": "Runtime CPU",
       "type": "timeseries"
     },
     {
@@ -124,8 +131,8 @@
       "gridPos": { "h": 7, "w": 6, "x": 6, "y": 12 },
       "id": 10,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "sum(container_memory_working_set_bytes{namespace=\"taskflow\"}) by (pod) or vector(0)", "legendFormat": "{{pod}}", "refId": "A" }],
-      "title": "Kubernetes Memory",
+      "targets": [{ "expr": "taskflow_backend_process_resident_memory_bytes or vector(0)", "legendFormat": "backend rss", "refId": "A" }],
+      "title": "Runtime Memory",
       "type": "timeseries"
     },
     {
@@ -134,8 +141,8 @@
       "gridPos": { "h": 7, "w": 6, "x": 12, "y": 12 },
       "id": 11,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "sum(kube_deployment_status_replicas_available{namespace=\"taskflow\"}) by (deployment) or vector(0)", "legendFormat": "{{deployment}}", "refId": "A" }],
-      "title": "Available Replicas",
+      "targets": [{ "expr": "up{job=~\"taskflow-.*\"}", "legendFormat": "{{service}}", "refId": "A" }],
+      "title": "Scrape Target Health",
       "type": "timeseries"
     },
     {
@@ -144,8 +151,8 @@
       "gridPos": { "h": 7, "w": 6, "x": 18, "y": 12 },
       "id": 12,
       "options": { "showHeader": true },
-      "targets": [{ "expr": "ALERTS{alertstate=\"firing\"} or vector(0)", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "A" }],
-      "title": "Active Alerts",
+      "targets": [{ "expr": "taskflow_sprint_confidence_percent or vector(0)", "format": "table", "instant": true, "legendFormat": "sprint confidence", "refId": "A" }],
+      "title": "Executive Confidence",
       "type": "table"
     },
     {
@@ -154,7 +161,10 @@
       "gridPos": { "h": 6, "w": 8, "x": 0, "y": 19 },
       "id": 13,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "sum by (method, route) (rate(taskflow_http_requests_total[5m])) or vector(0)", "legendFormat": "{{method}} {{route}}", "refId": "A" }],
+      "targets": [
+        { "expr": "sum by (method, path) (rate(taskflow_http_requests_total[5m]))", "legendFormat": "{{method}} {{path}}", "refId": "A" },
+        { "expr": "sum by (method, route) (rate(taskflow_backend_http_requests_total[5m]))", "legendFormat": "{{method}} {{route}}", "refId": "B" }
+      ],
       "title": "Top Routes",
       "type": "timeseries"
     },
@@ -174,7 +184,7 @@
       "gridPos": { "h": 6, "w": 8, "x": 16, "y": 19 },
       "id": 15,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "sum(rate(taskflow_notifications_sent_total[15m])) or vector(0)", "legendFormat": "notifications/min", "refId": "A" }],
+      "targets": [{ "expr": "sum by (state) (taskflow_notifications_total)", "legendFormat": "{{state}} notifications", "refId": "A" }],
       "title": "Notification Delivery",
       "type": "timeseries"
     }
@@ -189,6 +199,6 @@
   "timezone": "browser",
   "title": "TaskFlow Enterprise Command Center",
   "uid": "taskflow-enterprise",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

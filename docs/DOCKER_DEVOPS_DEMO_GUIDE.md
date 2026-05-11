@@ -37,7 +37,19 @@ cd C:\Users\sneha\OneDrive\Desktop\task
 
 ## 2. First-Time Setup Commands
 
-Run these once before the demo day.
+Run the automated setup once before the demo day. It builds the app/Jenkins images, starts every container, creates the Prisma schema, seeds demo data, configures Nexus, injects Jenkins credentials, provisions the Jenkins pipeline job, restarts Grafana, and warms metrics:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-devops-demo.ps1
+```
+
+If your SonarQube admin password is no longer `admin`, pass it explicitly so the script can create the Jenkins analysis token:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-devops-demo.ps1 -SonarUser admin -SonarPassword "YOUR_SONAR_PASSWORD"
+```
+
+Manual fallback commands are below if you want to do each step by hand.
 
 ```powershell
 docker compose build
@@ -206,7 +218,24 @@ Open:
 http://localhost:8085
 ```
 
-Get the initial admin password:
+After running `scripts/setup-devops-demo.ps1`, Jenkins automatically creates this job:
+
+```text
+http://localhost:8085/job/taskflow-enterprise-pipeline/
+```
+
+Click the job, then click **Build Now**. On stage view, explain:
+
+- Checkout from the local Git repository mounted into Jenkins.
+- Install dependencies and generate Prisma client.
+- Parallel test and lint/type-check stages.
+- SonarQube analysis. If the Sonar token was not created, this stage is marked unstable instead of killing the demo.
+- Parallel Docker builds for frontend and backend.
+- Parallel Trivy image scans with JSON/HTML reports archived.
+- Nexus push to the local Docker registry on `localhost:8082`.
+- Kubernetes/Helm deployment stage is present but disabled for Docker-only demos. Turn `RUN_K8S_DEPLOY` to `true` and add a kubeconfig credential when using EKS/minikube.
+
+If Jenkins has not been initialized before, get the initial admin password:
 
 ```powershell
 docker exec taskflow-jenkins cat /var/jenkins_home/secrets/initialAdminPassword
@@ -466,10 +495,10 @@ What to explain:
 - Task business KPIs
 - Queue health
 - Auth/security signal
-- Kubernetes CPU and memory panels
+- Runtime CPU and memory panels
 - Active alerts
 
-Some Kubernetes panels may show empty locally unless Prometheus is running inside a Kubernetes cluster with kube-state-metrics/cAdvisor metrics. That is expected for the Docker-only demo.
+This Docker demo dashboard intentionally uses live TaskFlow, backend runtime, and Prometheus target metrics so it does not look empty during a local presentation. Kubernetes-specific metrics are still available in the Helm/Kubernetes manifests for cluster demos.
 
 How to demonstrate Grafana:
 
