@@ -20,8 +20,7 @@ pipeline {
     NODE_ENV = 'test'
     SONAR_HOST_URL = 'http://sonarqube:9000'
     RUN_K8S_DEPLOY = 'false'
-    DOCKER_BUILDKIT = '1'
-    BUILDKIT_PROGRESS = 'plain'
+    DOCKER_BUILDKIT = '0'
   }
 
   stages {
