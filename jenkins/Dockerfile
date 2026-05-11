@@ -8,11 +8,15 @@ ARG NODE_MAJOR=20
 ARG KUBECTL_VERSION=v1.31.0
 ARG HELM_VERSION=v3.16.0
 ARG SONAR_SCANNER_VERSION=6.2.1.4610
+ARG DOCKER_CLI_VERSION=27.3.1
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl git gnupg lsb-release unzip tar docker.io \
+  && apt-get install -y --no-install-recommends ca-certificates curl git gnupg lsb-release unzip tar \
   && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
   && apt-get install -y --no-install-recommends nodejs \
+  && curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" -o /tmp/docker.tgz \
+  && tar -xzf /tmp/docker.tgz -C /tmp \
+  && install -m 0755 /tmp/docker/docker /usr/local/bin/docker \
   && curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl \
   && chmod +x /usr/local/bin/kubectl \
   && curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp \
@@ -29,7 +33,8 @@ RUN apt-get update \
   && ln -s "/opt/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64/bin/sonar-scanner" /usr/local/bin/sonar-scanner \
   && git config --system --add safe.directory /workspace/taskflow \
   && git config --system --add safe.directory /workspace/taskflow/.git \
-  && usermod -aG docker jenkins \
+  && groupadd -f docker \
+  && usermod -aG docker,root jenkins \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* /tmp/*
 

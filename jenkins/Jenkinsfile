@@ -85,6 +85,13 @@ pipeline {
       }
     }
 
+    stage('Docker Preflight') {
+      steps {
+        sh 'command -v docker'
+        sh 'docker version'
+      }
+    }
+
     stage('Docker Build') {
       parallel {
         stage('Build Frontend') {
