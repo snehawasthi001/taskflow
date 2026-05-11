@@ -4,12 +4,14 @@
 
 FROM node:20-alpine AS deps
 WORKDIR /app
+ENV HUSKY=0
 COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 RUN npm ci --legacy-peer-deps && npx prisma generate
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV HUSKY=0
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build:server && test -f dist/server/index.js
